@@ -40,11 +40,6 @@ pkill -f camera || true
     netsh wlan connect name="$CurrentSSID" | Out-Null
 }
 
-function Test-WiFiConnected {
-    $profile = Get-NetConnectionProfile -ErrorAction SilentlyContinue
-    return $profile -and $profile.Name -eq $SSID
-}
-
 function Force-Network-Refresh {
     # Force refresh
     Start-Process "ms-availablenetworks:"
@@ -222,6 +217,10 @@ function Invoke-SSHWithInput {
 
             $process.WaitForExit()
 
+            if ($process.ExitCode -eq 255) {
+                throw "RETRYABLE_SSH_FAILURE`n$output"
+            }
+            
             if ($process.ExitCode -ne 0) {
                 throw "SSH failed with exit code $($process.ExitCode)`n$stderr"
             }
@@ -257,7 +256,7 @@ $profile = @"
     </MSM>
 </WLANProfile>
 "@
-    
+
 $currentSSID = netsh wlan show interfaces |
 ForEach-Object {
     $m = [regex]::Match($_, '^\s*SSID\s*:\s*(.+)$')
@@ -267,13 +266,12 @@ ForEach-Object {
 } | 
 Select-Object -First 1
 
-$temp="$env:TEMP\$SSID.xml"
-$profile | Out-File -Encoding ascii $temp
-netsh wlan add profile filename="$temp"
 Write-Output "Current SSID: $currentSSID"
-
-Write-Output "Giving $SSID highest connection priority"
-netsh wlan set profileorder name="$SSID" interface="Wi-Fi" priority=1
+if ($currentSSID -ne $SSID) {
+    $temp="$env:TEMP\$SSID.xml"
+    $profile | Out-File -Encoding ascii $temp
+    netsh wlan add profile filename="$temp"
+}
 
 if (!(Test-Path $keyPath)) {
     Write-Output "No ssh key found. Generating new key"
@@ -288,7 +286,9 @@ if (!(Test-Path $keyPath)) {
     Write-Output "SSH key created"
 }
 
-New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
+if (-not (Test-Path "$HOME\.ssh" -PathType Container)) {
+    New-Item -ItemType Directory "$HOME\.ssh" | Out-Null
+}
 
 if ($currentSSID -eq $SSID) {
     Write-Output "Already connected to the the right network"
