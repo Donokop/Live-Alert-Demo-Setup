@@ -78,6 +78,7 @@ After enabling the access point, verify that:
 - A Wi-Fi network named `IntelDemoWLAN` should appear
 - The Ubuntu host should have IP `192.168.100.1`
 - Windows should be able to connect using the configured password
+
 ### Configure SSH server
 Install openSSH server:
 ```bash
@@ -138,7 +139,7 @@ Create a new file with the text editor of your choice:
 nano RunDemo.desktop
 ```
 
-Contents of the file:
+Add the following contents to the file:
 > NOTE: replace the `edge-ai-suites-prv/.../run-demo-alert.sh` path with the absolute path to the `run-demo-alert.sh` location
 ```
 [Desktop Entry]
@@ -150,7 +151,7 @@ Terminal=false
 ```
 
 Expected result:
-- Double-clicking on the RunDemo file causes the demo to open in a browser
+- Double-clicking the RunDemo file causes the demo to open in a browser
 
 ## Windows Client Setup
 ### Required Files
@@ -182,7 +183,7 @@ Edit `StartPreview.ps1`
     - If you did not modify the Docker Compose port settings the default port is `9000`
 
 ### Run the Demo
-If everything is set up correctly, double-clicking the `RunDemo.bat` file should be enough to start the preview. When prompted for an SSH password, enter the password used when the SSH user was created
+If everything is set up correctly, double-clicking the `RunDemo.bat` file should start the preview. When prompted for an SSH password, enter the password used when the SSH user was created
 
 ## Verification Steps
 
@@ -200,14 +201,14 @@ ssh sshuser@192.168.100.1
 docker ps
 ```
 
-4. Preview stream (adjust IP/port if needed):
+4. Preview stream (adjust IP or port if needed):
 http://192.168.100.1:9000
 
 ## Troubleshooting
 
 ### Access point does not appear
 
-Check whether the wireless adapter supports AP mode:
+Verify that the wireless adapter supports AP mode:
 
 ```bash
 iw list | grep AP
@@ -223,7 +224,7 @@ groups sshuser
 
 ### Windows cannot connect over SSH
 
-Verify the Ubuntu host IP:
+Verify the Ubuntu host IP address:
 
 ```bash
 ip addr
@@ -236,7 +237,7 @@ sudo systemctl status ssh.service
 ```
 
 ## Security Notes
- - SSH user sshuser has __no sudo privileges__ by default
+ - The SSH user `sshuser` has __no sudo privileges__ by default
  - SSH is intended for trusted local devices only
  - Change default passwords before any external or production use
 
@@ -257,17 +258,17 @@ sudo systemctl status ssh.service
 
 ### Windows 11 suddenly switches to another network
 - SYMPTOMS:
-    - During script execution there are sudden netowrk errors
-    - The Demo video at times stops/freezes
+    - During script execution there are sudden network errors
+    - The demo video may stop or freeze intermittently
 - CAUSE:
     - Unknown
 - WORKAROUND:
-    - Changing the AP band to 5GHz seems to cause the connection to become more stable
+    - Changing the AP band to 5GHz appears to improve connection stability
         - nmcli connection modify IntelDemoWLAN 802-11-wireless.band a
 
 ### No video when remotely starting the preview
 - SYMPTOMS:
-    - Webpage opens in browser, but there is no video
+    - Webpage opens in the browser, but no video is displayed
 - CAUSE:
     - Remote user not in `video` group
 - WORKAROUND:
