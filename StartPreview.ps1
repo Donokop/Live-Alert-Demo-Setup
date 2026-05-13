@@ -28,11 +28,13 @@ function Invoke-Cleanup {
     Write-Output "Click 'Enter' to stop the Demo"
     pause
 
-    ssh $RemoteSSHAddress "
-    tmux kill-session -t '$TmuxSessionName' 2>/dev/null || true
-    docker compose -f '$ComposeFilePath' down
-    pkill -f camera
-    "
+    $cmd = @"
+tmux kill-session -t '$TmuxSessionName' 2>/dev/null || true
+docker compose -f '$ComposeFilePath' down
+pkill -f camera || true
+"@
+
+    Invoke-SSH -RemoteTarget $RemoteSSHAddress -RemoteCommand $cmd
 
     Write-Output "Restoring previous network"
     netsh wlan connect name="$CurrentSSID" | Out-Null
@@ -92,7 +94,42 @@ function Network-Connection-Attempt {
     }
 }
 
-function SSH-With-Retry {
+function Invoke-WithRetry {
+    param(
+        [scriptblock]$ScriptBlock,
+        [int]$MaxRetries = 30,
+        [int]$DelaySeconds = 5,
+        [string]$OperationName = "Operation"
+    )
+
+    $attempt = 0
+
+    while ($attempt -lt $MaxRetries) {
+        $attempt++
+
+        Write-Output "$OperationName - Attempt $attempt/$MaxRetries"
+
+        try {
+            & $ScriptBlock
+            return
+        }
+        catch {
+            Write-Warning "$OperationName failed: $_"
+
+            if ($_ -notmatch "RETRYABLE_SSH_FAILURE") {
+                throw
+            }
+
+            if ($attempt -ge $MaxRetries) {
+                throw
+            }
+
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
+function Invoke-SSH {
     param(
         [string]$RemoteTarget,
         [string]$RemoteCommand,
@@ -101,45 +138,96 @@ function SSH-With-Retry {
         [switch]$StrictHostKeyChecking = $false
     )
 
-    $sshArgs = @()
+    Invoke-WithRetry `
+        -MaxRetries $MaxRetries `
+        -DelaySeconds $DelaySeconds `
+        -OperationName "SSH -> $RemoteTarget" `
+        -ScriptBlock {
 
-    if (-not $StrictHostKeyChecking) {
-        $sshArgs += @("-o", "StrictHostKeyChecking=no")
-    }
+            $sshArgs = @()
 
-    $sshArgs += $RemoteTarget
-    $sshArgs += $RemoteCommand
+            if (-not $StrictHostKeyChecking) {
+                $sshArgs += @(
+                    "-o", "StrictHostKeyChecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "-o", "ConnectTimeout=10",
+                    "-o", "ServerAliveInterval=15",
+                    "-o", "ServerAliveCountMax=3"
+                )
+            }
 
-    $attempt = 0
+            $sshArgs += $RemoteTarget
+            $sshArgs += $RemoteCommand
 
-    while ($attempt -lt $MaxRetries) {
-        $attempt++
+            $output = ssh @sshArgs 2>&1 | Out-String
+            $exitCode = $LASTEXITCODE
 
-        Write-Output "Attempt $attempt of ${MaxRetries}: SSH -> $RemoteTarget"
+            if ($exitCode -eq 0) {
+                return
+            }
 
-        $output = ssh @sshArgs 2>&1
-        $exitCode = $LASTEXITCODE
+            if ($output -match "duplicate session") {
+                Write-Output "Session already exists."
+                return
+            }
 
-        if ($exitCode -eq 0) {
-            return $true
+            if ($exitCode -eq 255) {
+                throw "RETRYABLE_SSH_FAILURE`n$output"
+            }
         }
+}
 
-        if ($output -match "duplicate session") {
-            Write-Output "Session already exists, continuing."
-            return $true
+function Invoke-SSHWithInput {
+    param(
+        [string]$RemoteTarget,
+        [string]$RemoteCommand,
+        [string]$InputData,
+        [int]$MaxRetries = 30,
+        [int]$DelaySeconds = 5
+    )
+
+    Invoke-WithRetry `
+        -MaxRetries $MaxRetries `
+        -DelaySeconds $DelaySeconds `
+        -OperationName "SSH(stdin) -> $RemoteTarget" `
+        -ScriptBlock {
+
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+
+            $psi.FileName = "ssh"
+
+            $psi.Arguments = @(
+                "-o StrictHostKeyChecking=no"
+                "-o UserKnownHostsFile=/dev/null"
+                "-o ConnectTimeout=10"
+                $RemoteTarget
+                $RemoteCommand
+            ) -join ' '
+
+            $psi.RedirectStandardInput = $true
+            $psi.RedirectStandardError = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.UseShellExecute = $false
+
+            $process = New-Object System.Diagnostics.Process
+            $process.StartInfo = $psi
+
+            $process.Start() | Out-Null
+
+            $process.StandardInput.Write($InputData)
+            $process.StandardInput.Close()
+
+            $stdout = $process.StandardOutput.ReadToEnd()
+            $stderr = $process.StandardError.ReadToEnd()
+
+            $process.WaitForExit()
+
+            if ($process.ExitCode -ne 0) {
+                throw "SSH failed with exit code $($process.ExitCode)`n$stderr"
+            }
+
+            Write-Output $stdout
         }
-
-        if ($exitCode -eq 255) {
-            Write-Warning "SSH transport failure."
-        } else {
-            Write-Warning "Remote command failed with exit code $exitCode"
-        }
-
-        Write-Warning "SSH failed (exit code $LASTEXITCODE). Retrying in $DelaySeconds seconds..."
-        Start-Sleep -Seconds $DelaySeconds
-    }
-
-    throw "SSH failed after $MaxRetries attempts to $RemoteTarget"
 }
 
 $profile = @"
@@ -207,33 +295,30 @@ if ($currentSSID -eq $SSID) {
     Network-Connection-Attempt -RemoteHostAddress $remoteHostAddress
     Write-Output "Connected successfully."
 } else {
-    while ($true) {
-    Write-Output "Looking for $SSID..."
-    Force-Network-Refresh
+    $maxScanAttempts = 30
+    $scanAttempt = 0
 
-    if ((netsh wlan show networks) -match [regex]::Escape($SSID)) {
-        Write-Output "Connecting..."
-        netsh wlan connect name="$SSID" | Out-Null
+    while ($scanAttempt -lt $maxScanAttempts) {
+        $scanAttempt++
 
-        $ok = $false
-        for ($i = 0; $i -lt 10; $i++) {
-            Start-Sleep 2
+        Write-Output "Looking for $SSID..."
+        Force-Network-Refresh
 
-            if (Test-WiFiConnected) {
-                $ok = $true
-                break
-            }
-        }
+        if ((netsh wlan show networks) -match [regex]::Escape($SSID)) {
 
-        if ($ok) {
-            Write-Output "Connected successfully."
+            Write-Output "Connecting..."
+            netsh wlan connect name="$SSID" | Out-Null
             break
         }
 
-        Write-Output "Failed. Retrying..."
+        Start-Sleep 5
     }
-    Start-Sleep 5
-}
+
+    if ($scanAttempt -ge $maxScanAttempts) {
+        throw "SSID '$SSID' not found."
+    }
+
+    Network-Connection-Attempt -RemoteHostAddress $remoteHostAddress
 }
 
 Write-Output "Device reachable, starting SSH"
@@ -247,10 +332,12 @@ chmod 600 ~/.ssh/authorized_keys &&
 cat >> ~/.ssh/authorized_keys
 '@
 
-Get-Content "$keyPath.pub" -Raw | ssh $remoteSSHAddress $remoteCommand
+$keyData = Get-Content "$keyPath.pub" -Raw
+
+Invoke-SSHWithInput -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand -InputData $keyData
 Write-Output "Key installed"
 
-SSH-With-Retry -RemoteTarget $remoteSSHAddress -RemoteCommand "tmux new-session -d -s $tmuxSessionName '$scriptPath'" | Out-Null
+Invoke-SSH -RemoteTarget $remoteSSHAddress -RemoteCommand "tmux new-session -d -s $tmuxSessionName '$scriptPath'"
 
 Write-Output "Checking if Demo ready..."
 Write-Output "Waiting for camera..."
