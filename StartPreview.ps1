@@ -13,7 +13,7 @@ $url = "http://${remoteHostAddress}:${port}"
 $remoteSSHAddress = "${remoteUser}@${remoteHostAddress}"
 
 $tmuxSessionName = "camera-script"
-$keyPath = Join-Path $HOME ".ssh\id_ed25519"
+$keyPath = Join-Path $HOME ".ssh\id_ed25519_LiveDemoKey"
 
 function Invoke-Cleanup {
     param(
@@ -22,7 +22,8 @@ function Invoke-Cleanup {
         [string]$SSID,
         [string]$RemoteSSHAddress,
         [string]$Url,
-        [string]$TmuxSessionName
+        [string]$TmuxSessionName,
+        [string]$KeyFile
     )
 
     Write-Output "To open the site manually copy this address into your browser: $Url"
@@ -35,7 +36,7 @@ docker compose -f '$ComposeFilePath' down
 pkill -f camera || true
 "@
 
-    Invoke-SSH -RemoteTarget $RemoteSSHAddress -RemoteCommand $cmd
+    Invoke-SSH -RemoteTarget $RemoteSSHAddress -RemoteCommand $cmd -KeyFile $KeyFile
 
     if ($CurrentSSID -ne $SSID) {
         Write-Output "Restoring to previous network $CurrentSSID"
@@ -131,6 +132,7 @@ function Invoke-SSH {
     param(
         [string]$RemoteTarget,
         [string]$RemoteCommand,
+        [string]$KeyFile,
         [int]$MaxRetries = 30,
         [int]$DelaySeconds = 5,
         [switch]$StrictHostKeyChecking = $false
@@ -143,6 +145,12 @@ function Invoke-SSH {
         -ScriptBlock {
 
             $sshArgs = @()
+            if ($KeyFile) {
+                $sshArgs += @(
+                    "-i", $KeyFile,
+                    "-o", "IdentitiesOnly=yes"
+                )
+            }
 
             if (-not $StrictHostKeyChecking) {
                 $sshArgs += @(
@@ -180,6 +188,7 @@ function Invoke-SSHWithInput {
         [string]$RemoteTarget,
         [string]$RemoteCommand,
         [string]$InputData,
+        [string]$KeyFile,
         [int]$MaxRetries = 30,
         [int]$DelaySeconds = 5
     )
@@ -195,6 +204,8 @@ function Invoke-SSHWithInput {
             $psi.FileName = "ssh"
 
             $psi.Arguments = @(
+                "-i `"$KeyFile`""
+                "-o IdentitiesOnly=yes"
                 "-o StrictHostKeyChecking=no"
                 "-o UserKnownHostsFile=/dev/null"
                 "-o ConnectTimeout=10"
@@ -221,7 +232,7 @@ function Invoke-SSHWithInput {
             $process.WaitForExit()
 
             if ($process.ExitCode -eq 255) {
-                throw "RETRYABLE_SSH_FAILURE`n$output"
+                throw "RETRYABLE_SSH_FAILURE`n$stderr"
             }
             
             if ($process.ExitCode -ne 0) {
@@ -277,7 +288,7 @@ if ($currentSSID -ne $SSID) {
 }
 
 $keyPrivate = $keyPath
-$keyPublic  = "$keyPath.pub"
+$keyPublic = "$keyPath.pub"
 
 New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
 
@@ -335,10 +346,10 @@ chmod 600 ~/.ssh/authorized_keys &&
 cat >> ~/.ssh/authorized_keys
 '@
 
-Invoke-SSHWithInput -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand -InputData $keyData
+Invoke-SSHWithInput -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand -InputData $keyData -KeyFile $keyPrivate
 Write-Output "Key installed"
 
-Invoke-SSH -RemoteTarget $remoteSSHAddress -RemoteCommand "tmux new-session -d -s $tmuxSessionName '$scriptPath'"
+Invoke-SSH -RemoteTarget $remoteSSHAddress -RemoteCommand "tmux new-session -d -s $tmuxSessionName '$scriptPath'" -KeyFile $keyPrivate
 
 Write-Output "Checking if Demo ready..."
 Write-Output "Waiting for camera..."
@@ -368,4 +379,4 @@ if ($chrome) {
     Start-Process $url
 }
 
-Invoke-Cleanup -ComposeFilePath $composeFilePath -CurrentSSID $currentSSID -SSID $SSID -RemoteSSHAddress $remoteSSHAddress -Url $url -TmuxSessionName $tmuxSessionName
+Invoke-Cleanup -ComposeFilePath $composeFilePath -CurrentSSID $currentSSID -SSID $SSID -RemoteSSHAddress $remoteSSHAddress -Url $url -TmuxSessionName $tmuxSessionName -KeyFile $keyPrivate
