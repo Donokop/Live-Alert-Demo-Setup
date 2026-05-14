@@ -290,10 +290,6 @@ if (-not (Test-Path $keyPrivate) -or -not (Test-Path $keyPublic)) {
 
 $keyData = Get-Content $keyPublic -Raw
 
-if (-not (Test-Path "$HOME\.ssh" -PathType Container)) {
-    New-Item -ItemType Directory "$HOME\.ssh" | Out-Null
-}
-
 if ($currentSSID -eq $SSID) {
     Write-Output "Already connected to the the right network"
     Network-Connection-Attempt -RemoteHostAddress $remoteHostAddress
