@@ -19,6 +19,7 @@ function Invoke-Cleanup {
     param(
         [string]$ComposeFilePath,
         [string]$CurrentSSID,
+        [string]$SSID,
         [string]$RemoteSSHAddress,
         [string]$Url,
         [string]$TmuxSessionName
@@ -36,8 +37,10 @@ pkill -f camera || true
 
     Invoke-SSH -RemoteTarget $RemoteSSHAddress -RemoteCommand $cmd
 
-    Write-Output "Restoring to previous network"
-    netsh wlan connect name="$CurrentSSID" | Out-Null
+    if ($CurrentSSID -ne $SSID) {
+        Write-Output "Restoring to previous network $CurrentSSID"
+        netsh wlan connect name="$CurrentSSID" | Out-Null
+    }
 }
 
 function Force-Network-Refresh {
@@ -365,4 +368,4 @@ if ($chrome) {
     Start-Process $url
 }
 
-Invoke-Cleanup -ComposeFilePath $composeFilePath -CurrentSSID $currentSSID -RemoteSSHAddress $remoteSSHAddress -Url $url -TmuxSessionName $tmuxSessionName
+Invoke-Cleanup -ComposeFilePath $composeFilePath -CurrentSSID $currentSSID -SSID $SSID -RemoteSSHAddress $remoteSSHAddress -Url $url -TmuxSessionName $tmuxSessionName
