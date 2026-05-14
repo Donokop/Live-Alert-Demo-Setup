@@ -36,7 +36,7 @@ pkill -f camera || true
 
     Invoke-SSH -RemoteTarget $RemoteSSHAddress -RemoteCommand $cmd
 
-    Write-Output "Restoring previous network"
+    Write-Output "Restoring to previous network"
     netsh wlan connect name="$CurrentSSID" | Out-Null
 }
 
@@ -146,7 +146,7 @@ function Invoke-SSH {
                     "-o", "StrictHostKeyChecking=no",
                     "-o", "UserKnownHostsFile=/dev/null",
                     "-o", "ConnectTimeout=10",
-                    "-o", "ServerAliveInterval=15",
+                    "-o", "ServerAliveInterval=20",
                     "-o", "ServerAliveCountMax=3"
                 )
             }
@@ -273,18 +273,22 @@ if ($currentSSID -ne $SSID) {
     netsh wlan add profile filename="$temp"
 }
 
-if (!(Test-Path $keyPath)) {
-    Write-Output "No ssh key found. Generating new key"
+$keyPrivate = $keyPath
+$keyPublic  = "$keyPath.pub"
 
-    $args = @(
-        "-t", "ed25519",
-        "-f", $keyPath
-    )
+New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
 
-    ssh-keygen @args
+if (-not (Test-Path $keyPrivate) -or -not (Test-Path $keyPublic)) {
+    Write-Output "Generating SSH keypair"
 
-    Write-Output "SSH key created"
+    ssh-keygen -t ed25519 -f $keyPrivate
+
+    if (-not (Test-Path $keyPublic)) {
+        throw "Key generation failed: public key missing"
+    }
 }
+
+$keyData = Get-Content $keyPublic -Raw
 
 if (-not (Test-Path "$HOME\.ssh" -PathType Container)) {
     New-Item -ItemType Directory "$HOME\.ssh" | Out-Null
@@ -331,8 +335,6 @@ touch ~/.ssh/authorized_keys &&
 chmod 600 ~/.ssh/authorized_keys &&
 cat >> ~/.ssh/authorized_keys
 '@
-
-$keyData = Get-Content "$keyPath.pub" -Raw
 
 Invoke-SSHWithInput -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand -InputData $keyData
 Write-Output "Key installed"
