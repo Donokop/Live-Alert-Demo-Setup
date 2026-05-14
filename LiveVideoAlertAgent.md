@@ -3,6 +3,27 @@
 This guide explains how to run the Live Video Alert Agent demo on an Ubuntu host
 and remotely preview it from a Windows client
 
+## Table Of Contents:
+
+1. [Overview](#overview)
+2. [Architecture / What this setup does](#architecture--what-this-setup-does)
+3. [Prerequisites](#prerequisites)
+4. [Ubuntu Host Setup](#ubuntu-host-setup)
+    - 4.1 [Install Dependencies](#install-dependencies)
+    - 4.2 [Clone Repository](#clone-repository)
+    - 4.3 [Configure Access Point](#configure-access-point)
+    - 4.4 [Configure SSH Server](#configure-ssh-server)
+    - 4.5 [Configure SSH User](#configure-ssh-user)
+    - 4.6 [Install Project Dependencies](#install-project-dependencies)
+    - 4.7 [Create Fallback Script](#create-fallback-script)
+5. [Windows Client Setup](#windows-client-setup)
+    - 5.1 [Required Files](#required-files)
+    - 5.2 [Configure StartPreview.ps1](#configure-startpreviewps1)
+    - 5.3 [Run The Demo](#run-the-demo)
+6. [Troubleshooting](#troubleshooting)
+7. [Security Notes](#security-notes)
+8. [Known Issues](#known-issues)
+
 ## Overview
 The Ubuntu machine:
  - hosts the demo
@@ -79,7 +100,7 @@ After enabling the access point, verify that:
 - The Ubuntu host should have IP `192.168.100.1`
 - Windows should be able to connect using the configured password
 
-### Configure SSH server
+### Configure SSH Server
 Install openSSH server:
 ```bash
 sudo apt install openssh-server
@@ -145,7 +166,7 @@ Add the following contents to the file:
 [Desktop Entry]
 Type=Application
 Name=RunDemo
-Exec=gnome-terminal -- bash -c "edge-ai-suites-prv/metro-ai-suite/live-video-analysis/showroom-demo/run-demo-alert.sh"
+Exec=gnome-terminal -- bash -c "../edge-ai-suites-prv/metro-ai-suite/live-video-analysis/showroom-demo/run-demo-alert.sh"
 Icon=utilities-terminal
 Terminal=false
 ```
@@ -183,7 +204,8 @@ Edit `StartPreview.ps1`
     - If you did not modify the Docker Compose port settings the default port is `9000`
 
 ### Run the Demo
-If everything is set up correctly, double-clicking the `RunDemo.bat` file should start the preview. When prompted for an SSH password, enter the password used when the SSH user was created
+If everything is set up correctly, double-clicking the `RunDemo.bat` file should start the preview. When prompted for a passphrase you may leave it empty (Press `Enter`), but it is possible to enter a passphrase. When prompted for an SSH password, enter the password used when the SSH user was created
+> NOTE: If you choose to enter a passphrase, you will be asked for it on every SSH operation in the script.
 
 ## Verification Steps
 
