@@ -13,8 +13,8 @@ and remotely preview it from a Windows client
     - 4.2 [Clone Repository](#clone-repository)
     - 4.3 [Configure Access Point](#configure-access-point)
     - 4.4 [Configure SSH Server](#configure-ssh-server)
-    - 4.5 [Configure SSH User](#configure-ssh-user)
-    - 4.6 [Install Project Dependencies](#install-project-dependencies)
+    - 4.5 [Install Project Dependencies](#install-project-dependencies)
+    - 4.6 [Configure SSH User](#configure-ssh-user)
     - 4.7 [Create Fallback Script](#create-fallback-script)
 5. [Windows Client Setup](#windows-client-setup)
     - 5.1 [Required Files](#required-files)
@@ -55,9 +55,9 @@ sudo apt install -y git python3 tmux
 
 ### Clone Repository
 ```bash
-git clone -b wdunia-vlm-demo https://github.com/wdunia/edge-ai-suites-prv.git
+sudo git clone -b wdunia-vlm-demo https://github.com/wdunia/edge-ai-suites-prv.git
 cd edge-ai-suites-prv
-git sparse-checkout set metro-ai-suite
+sudo git sparse-checkout set metro-ai-suite
 cd metro-ai-suite/live-video-analysis/live-video-alert-agent
 ```
 
@@ -117,18 +117,6 @@ To check if openSSH is running:
 sudo systemctl status ssh.service
 ```
 
-### Configure SSH User
-Create a new designated SSH user:
-```bash
-sudo useradd -m sshuser
-sudo passwd sshuser
-```
-
-Add the SSH user to the `video` group so it can access camera devices remotely
-```bash
-sudo usermod -aG video sshuser
-```
-
 ### Install Project Dependencies
 Change to the downloaded repository directory: `edge-ai-suites-prv/metro-ai-suite/live-video-analysis/showroom-demo`
 
@@ -139,13 +127,32 @@ cd edge-ai-suites-prv/metro-ai-suite/live-video-analysis/showroom-demo
 Make project scripts executable: `edge-ai-suites-prv/metro-ai-suite/live-video-analysis/showroom-demo`
 
 ```bash
-chmod +x install-dependencies.sh camera-rtsp.py run-demo-alert.sh
+sudo chmod +x install-dependencies.sh camera-rtsp.py run-demo-alert.sh
 ```
 
 Install the project dependencies:
 ```bash
 ./install-dependencies.sh
 ```
+
+### Configure SSH User
+Create a new designated SSH user:
+```bash
+sudo useradd -m -s /bin/bash sshuser
+sudo passwd sshuser
+```
+
+Add the SSH user to the `video` group so it can access camera devices remotely
+```bash
+sudo usermod -aG video sshuser
+```
+
+Add the SSH user to the `docker` group so it can run the demo without requiring administrator privileges
+```bash
+sudo usermod -aG docker sshuser
+```
+
+> NOTE: For the changes to take effect, restart your device
 
 ### Create Fallback Script
 Switch to SSH user and open a terminal
@@ -170,6 +177,13 @@ Exec=gnome-terminal -- bash -c "../edge-ai-suites-prv/metro-ai-suite/live-video-
 Icon=utilities-terminal
 Terminal=false
 ```
+
+Make the `RunDemo.desktop` file executable:
+```bash
+chmod +x RunDemo.desktop
+```
+
+In the User Interface, right-click on the `RunDemo.desktop` and later click `Allow launching` to enable execution of the file.
 
 Expected result:
 - Double-clicking the RunDemo file causes the demo to open in a browser
