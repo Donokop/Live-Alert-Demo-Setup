@@ -177,14 +177,6 @@ function Invoke-SSH {
                 return
             }
 
-            if ($output -match "Probing camera") {
-                Write-Output "Probing camera"
-            }
-
-            if ($output -match "Waiting for camera") {
-                Write-Output "Waiting for camera"
-            }
-
             if ($exitCode -eq 255) {
                 throw "RETRYABLE_SSH_FAILURE`n$output"
             }
