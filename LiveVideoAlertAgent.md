@@ -188,6 +188,11 @@ In the User Interface, right-click on the `RunDemo.desktop` and later click `All
 Expected result:
 - Double-clicking the RunDemo file causes the demo to open in a browser
 
+### (Additional) Install ViPPET
+> NOTE: If you want to later start it using a remote script, take note of its installation path
+
+If you want to add ViPPET as well, follow the steps in: https://docs.openedgeplatform.intel.com/2026.0/edge-ai-libraries/visual-pipeline-and-platform-evaluation-tool/get-started.html
+
 ## Windows Client Setup
 ### Required Files
 Download `RunDemo.bat` and `StartPreview.ps1` from [place_holder]
@@ -310,3 +315,14 @@ sudo systemctl status ssh.service
 - WORKAROUND:
     - Ensure remote user is in `video` group
         - sudo usermod -aG video sshuser
+
+### Live Video Alert Agent can not start
+- SYMPTOMS:
+    - During `docker compose` a single container fails
+- CAUSE:
+    - Model did not download properly
+    - The docker file requirements are not valid for new model
+- WORKAROUND:
+    - Inside of the docker file `docker-compose.yml` comment out these lines:
+        - 57. `# - --pipeline_type
+        - 58. `# - "VLM"
