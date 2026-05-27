@@ -31,8 +31,8 @@ function Invoke-Cleanup {
     pause
 
     $cmd = @"
-tmux kill-session -t '$TmuxSessionName' 2>/dev/null || true
 docker compose -f '$ComposeFilePath' down
+tmux kill-session -t '$TmuxSessionName' 2>/dev/null || true
 pkill -f camera || true
 "@
 
@@ -45,7 +45,7 @@ pkill -f camera || true
 }
 
 function Force-Network-Refresh {
-    # Force refresh
+    # Force refresh by opening windows forms
     Start-Process "ms-availablenetworks:"
     Start-Sleep -Milliseconds 1500
     Add-Type -AssemblyName System.Windows.Forms
@@ -175,6 +175,14 @@ function Invoke-SSH {
             if ($output -match "duplicate session") {
                 Write-Output "Session already exists."
                 return
+            }
+
+            if ($output -match "Probing camera") {
+                Write-Output "Probing camera"
+            }
+
+            if ($output -match "Waiting for camera") {
+                Write-Output "Waiting for camera"
             }
 
             if ($exitCode -eq 255) {
@@ -349,7 +357,17 @@ cat >> ~/.ssh/authorized_keys
 Invoke-SSHWithInput -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand -InputData $keyData -KeyFile $keyPrivate
 Write-Output "Key installed"
 
-Invoke-SSH -RemoteTarget $remoteSSHAddress -RemoteCommand "tmux new-session -d -s $tmuxSessionName '$scriptPath'" -KeyFile $keyPrivate
+# Stops ALL containers in case of port conflicts
+# This kills any existing tmux sessions with the same name (It wont start if a session already exists)
+# Starts a new tmux session
+Write-Output "Stopping any existing demos... (May take a moment)"
+$remoteCommand1 = @"
+docker stop `$(docker ps -a -q`)
+tmux kill-session -t '$TmuxSessionName' 2>/dev/null || true
+tmux new-session -d -s $tmuxSessionName '$scriptPath'
+"@
+
+Invoke-SSH -RemoteTarget $remoteSSHAddress -RemoteCommand $remoteCommand1 -KeyFile $keyPrivate
 
 Write-Output "Checking if Demo ready..."
 Write-Output "Waiting for camera..."
@@ -362,21 +380,30 @@ while ($true) {
 
     Start-Sleep -Seconds 1
 }
+Write-Output "Demo ready"
 
-$chromePaths = @(
+function Open-In-Browser {
+    param(
+        [string]$Url
+    )
+
+    $chromePaths = @(
     "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
     "$env:ProgramFiles(x86)\Google\Chrome\Application\chrome.exe",
     "$env:LocalAppData\Google\Chrome\Application\chrome.exe"
-)
+    )
 
-$chrome = $chromePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
-Write-Output "Demo status: Ready. Starting..."
-if ($chrome) {
-    Write-Output "Detected Chrome browser, launching..."
-    Start-Process $chrome @("--start-fullscreen", $url)
-} else {
-    Write-Output "Chrome not detected, using default browser"
-    Start-Process $url
+    $chrome = $chromePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    Write-Output "Demo status: Ready. Starting..."
+    if ($chrome) {
+        Write-Output "Detected Chrome browser, launching..."
+        Start-Process $chrome @("--start-fullscreen", $Url)
+    } else {
+        Write-Output "Chrome not detected, using default browser"
+        Start-Process $Url
+    }
 }
+
+Open-In-Browser -Url $url
 
 Invoke-Cleanup -ComposeFilePath $composeFilePath -CurrentSSID $currentSSID -SSID $SSID -RemoteSSHAddress $remoteSSHAddress -Url $url -TmuxSessionName $tmuxSessionName -KeyFile $keyPrivate
