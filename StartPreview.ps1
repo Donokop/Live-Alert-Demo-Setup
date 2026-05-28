@@ -27,6 +27,11 @@ function Invoke-Cleanup {
     )
 
     Write-Output "To open the site manually copy this address into your browser: $Url"
+    Write-Host -ForeGroundColor DarkGreen "To add video files in the RTSP URL form write the following:"
+    Write-Host -ForeGroundColor DarkGreen "rtsp://localhost:8555/f1 - Crossroad car accident video"
+    Write-Host -ForeGroundColor DarkGreen "rtsp://localhost:8555/f2 - Highway car accident video"
+    Write-Host -ForeGroundColor DarkGreen "rtsp://localhost:8555/f3 - Collection of car accident videos"
+    Write-Host -ForeGroundColor DarkGreen "rtsp://localhost:8555/f4 - Collection of car accident videos"
     Write-Output "Click 'Enter' to stop the Demo"
     pause
 
@@ -175,6 +180,14 @@ function Invoke-SSH {
             if ($output -match "duplicate session") {
                 Write-Output "Session already exists."
                 return
+            }
+
+            if ($output -match "Probing camera") {
+                Write-Output "Probing camera"
+            }
+
+            if ($output -match "Waiting for camera") {
+                Write-Output "Waiting for camera"
             }
 
             if ($exitCode -eq 255) {
