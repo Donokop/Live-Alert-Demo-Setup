@@ -3,7 +3,7 @@
 This guide explains how to run the Live Video Alert Agent demo on an Ubuntu host
 and remotely preview it from a Windows client
 
-> IMPORTANT: If you do not want to go through these steps manually you may use the `setup.sh` script that sets up the Ubuntu device
+> IMPORTANT: If you do not want to go through these steps manually you may use the `setup.sh` script that sets up the Ubuntu device.
 > At the end of the script a summary exists of what steps succedded
 
 ## Table Of Contents:
