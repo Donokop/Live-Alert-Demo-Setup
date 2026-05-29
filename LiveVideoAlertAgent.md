@@ -3,6 +3,9 @@
 This guide explains how to run the Live Video Alert Agent demo on an Ubuntu host
 and remotely preview it from a Windows client
 
+> IMPORTANT: If you do not want to go through these steps manually you may use the `setup.sh` script that sets up the Ubuntu device
+> At the end of the script a summary exists of what steps succedded
+
 ## Table Of Contents:
 
 1. [Overview](#overview)
@@ -315,14 +318,3 @@ sudo systemctl status ssh.service
 - WORKAROUND:
     - Ensure remote user is in `video` group
         - sudo usermod -aG video sshuser
-
-### Live Video Alert Agent can not start
-- SYMPTOMS:
-    - During `docker compose` a single container fails
-- CAUSE:
-    - Model did not download properly
-    - The docker file requirements are not valid for new model
-- WORKAROUND:
-    - Inside of the docker file `docker-compose.yml` comment out these lines:
-        - 57. `# - --pipeline_type
-        - 58. `# - "VLM"
